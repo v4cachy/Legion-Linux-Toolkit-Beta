@@ -1,4 +1,4 @@
-# Legion Linux Toolkit
+# Legion Linux Toolkit (BETA) ~V.0.6.0~
 
 > **Beta v0.6.0** — A power management and hardware control dashboard for Lenovo Legion laptops on Linux.
 
