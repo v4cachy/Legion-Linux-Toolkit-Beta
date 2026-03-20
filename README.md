@@ -1,5 +1,9 @@
 # Legion Linux Toolkit (BETA)
 
+<p align="center">
+  <img src="logo.png" width="80" alt="Legion Logo"/>
+</p>
+
 > **Beta v0.6.0** — A power management and hardware control dashboard for Lenovo Legion laptops on Linux.
 
 ---
@@ -35,7 +39,7 @@ yay -S lenovo-legion-linux-dkms legionaura envycontrol
 ## Install
 
 ```bash
-git clone https://github.com/v4cachy/Legion-Linux-Toolkit-Beta.git
+git clone https://github.com/YOUR_USERNAME/legion-linux-toolkit
 cd legion-linux-toolkit
 sudo bash install.sh
 ```
@@ -155,4 +159,3 @@ sudo bash uninstall.sh
 ## License
 
 MIT
-
