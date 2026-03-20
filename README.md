@@ -39,7 +39,7 @@ yay -S lenovo-legion-linux-dkms legionaura envycontrol
 ## Install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/legion-linux-toolkit
+git clone https://github.com/v4cachy/legion-linux-toolkit
 cd legion-linux-toolkit
 sudo bash install.sh
 ```
