@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Legion Linux Toolkit — Power Management for Lenovo Laptops</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:        #0d0d0d;
+  --bg2:       #111111;
+  --bg3:       #161616;
+  --card:      #1a1a1a;
+  --card2:     #202020;
+  --border:    #2a2a2a;
+  --red:       #cc2222;
+  --red2:      #ff3333;
+  --red-dim:   #cc222222;
+  --text:      #e8e8e8;
+  --text2:     #888;
+  --text3:     #444;
+  --green:     #22cc66;
+  --blue:      #3399ff;
+  --mono:      'Space Mono', monospace;
+  --display:   'Rajdhani', sans-serif;
+  --body:      'Inter', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--red); border-radius: 2px; }
+
+/* ── Nav ── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 40px; height: 60px;
+  background: rgba(13,13,13,0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+.nav-logo {
+  display: flex; align-items: center; gap: 12px;
+  text-decoration: none;
+}
+.nav-logo svg { width: 28px; height: 34px; }
+.nav-logo span {
+  font-family: var(--display);
+  font-size: 18px; font-weight: 700; letter-spacing: 2px;
+  color: var(--text);
+}
+.nav-logo span em { color: var(--red); font-style: normal; }
+.nav-links { display: flex; gap: 32px; list-style: none; }
+.nav-links a {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 1px;
+  color: var(--text2); text-decoration: none; text-transform: uppercase;
+  transition: color .2s;
+}
+.nav-links a:hover { color: var(--red2); }
+.nav-cta {
+  background: var(--red); color: #fff;
+  font-family: var(--mono); font-size: 11px; letter-spacing: 1px;
+  text-transform: uppercase; text-decoration: none;
+  padding: 8px 20px; border-radius: 3px;
+  transition: background .2s;
+}
+.nav-cta:hover { background: var(--red2); }
+
+/* ── Hero ── */
+.hero {
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center;
+  padding: 120px 20px 80px;
+  position: relative; overflow: hidden;
+}
+
+/* Grid background */
+.hero::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 60px 60px;
+  opacity: 0.3;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black, transparent);
+}
+
+/* Red glow */
+.hero::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 60% 50% at 50% 40%, rgba(204,34,34,0.12), transparent 70%);
+  pointer-events: none;
+}
+
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 20px; padding: 4px 16px;
+  font-family: var(--mono); font-size: 11px; color: var(--text2);
+  letter-spacing: 1px; margin-bottom: 28px;
+  position: relative; z-index: 1;
+}
+.hero-badge span { color: var(--green); }
+
+.hero-logo {
+  width: 80px; height: 96px; margin: 0 auto 28px;
+  position: relative; z-index: 1;
+  animation: float 4s ease-in-out infinite;
+  filter: drop-shadow(0 0 32px rgba(204,34,34,0.5));
+}
+@keyframes float {
+  0%,100% { transform: translateY(0); }
+  50%      { transform: translateY(-10px); }
+}
+
+.hero h1 {
+  font-family: var(--display);
+  font-size: clamp(42px, 7vw, 80px);
+  font-weight: 700;
+  letter-spacing: 4px;
+  line-height: 1.05;
+  position: relative; z-index: 1;
+  margin-bottom: 10px;
+}
+.hero h1 em { color: var(--red); font-style: normal; }
+
+.hero-sub {
+  font-family: var(--display);
+  font-size: clamp(14px, 2vw, 18px);
+  color: var(--text2); letter-spacing: 4px;
+  text-transform: uppercase;
+  position: relative; z-index: 1;
+  margin-bottom: 20px;
+}
+
+.hero-desc {
+  max-width: 560px;
+  font-size: 15px; color: var(--text2);
+  line-height: 1.7;
+  position: relative; z-index: 1;
+  margin-bottom: 40px;
+}
+
+.hero-btns {
+  display: flex; gap: 14px; flex-wrap: wrap;
+  justify-content: center;
+  position: relative; z-index: 1;
+  margin-bottom: 60px;
+}
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--red); color: #fff;
+  font-family: var(--mono); font-size: 12px; letter-spacing: 1px;
+  text-transform: uppercase; text-decoration: none;
+  padding: 14px 28px; border-radius: 4px;
+  transition: all .2s;
+  border: 1px solid var(--red);
+}
+.btn-primary:hover {
+  background: var(--red2); border-color: var(--red2);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(204,34,34,0.35);
+}
+.btn-secondary {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: transparent; color: var(--text);
+  font-family: var(--mono); font-size: 12px; letter-spacing: 1px;
+  text-transform: uppercase; text-decoration: none;
+  padding: 14px 28px; border-radius: 4px;
+  border: 1px solid var(--border);
+  transition: all .2s;
+}
+.btn-secondary:hover {
+  border-color: var(--text2); color: var(--text);
+  transform: translateY(-1px);
+}
+
+/* Hero stats */
+.hero-stats {
+  display: flex; gap: 48px; flex-wrap: wrap;
+  justify-content: center; align-items: center;
+  position: relative; z-index: 1;
+  padding-top: 40px;
+  border-top: 1px solid var(--border);
+  width: 100%; max-width: 600px;
+}
+.stat { text-align: center; }
+.stat-val {
+  font-family: var(--display); font-size: 28px; font-weight: 700;
+  color: var(--red); letter-spacing: 2px;
+}
+.stat-lbl {
+  font-family: var(--mono); font-size: 10px; color: var(--text3);
+  letter-spacing: 2px; text-transform: uppercase; margin-top: 2px;
+}
+
+/* ── Section base ── */
+section { padding: 100px 20px; max-width: 1200px; margin: 0 auto; }
+.section-label {
+  font-family: var(--mono); font-size: 11px; color: var(--red);
+  letter-spacing: 3px; text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.section-title {
+  font-family: var(--display); font-size: clamp(28px, 4vw, 44px);
+  font-weight: 700; letter-spacing: 2px; margin-bottom: 14px;
+}
+.section-desc { font-size: 15px; color: var(--text2); max-width: 540px; line-height: 1.7; }
+
+/* ── Feature cards ── */
+.features { padding: 100px 20px; background: var(--bg2); }
+.features-inner { max-width: 1200px; margin: 0 auto; }
+.features-header { text-align: center; margin-bottom: 64px; }
+.features-header .section-desc { margin: 0 auto; }
+
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 32px;
+  position: relative; overflow: hidden;
+  transition: border-color .25s, transform .25s;
+  cursor: default;
+}
+.card::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, var(--red-dim), transparent 60%);
+  opacity: 0; transition: opacity .25s;
+}
+.card:hover { border-color: var(--red); transform: translateY(-3px); }
+.card:hover::before { opacity: 1; }
+
+.card-icon {
+  width: 48px; height: 48px;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 20px;
+  font-size: 22px;
+  position: relative; z-index: 1;
+  transition: border-color .25s;
+}
+.card:hover .card-icon { border-color: var(--red); }
+.card h3 {
+  font-family: var(--display); font-size: 20px; font-weight: 600;
+  letter-spacing: 1px; margin-bottom: 10px;
+  position: relative; z-index: 1;
+}
+.card p {
+  font-size: 14px; color: var(--text2); line-height: 1.7;
+  position: relative; z-index: 1;
+}
+
+/* ── Screenshots ── */
+.screenshots-section { padding: 100px 20px; }
+.screenshots-inner { max-width: 1200px; margin: 0 auto; }
+.ss-header { margin-bottom: 48px; }
+
+.ss-tabs {
+  display: flex; gap: 4px; flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+.ss-tab {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--text2);
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 4px; padding: 7px 16px;
+  cursor: pointer; transition: all .2s;
+  user-select: none;
+}
+.ss-tab:hover { color: var(--text); border-color: var(--text3); }
+.ss-tab.active { color: var(--red2); border-color: var(--red); background: var(--red-dim); }
+
+.ss-display {
+  position: relative;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+}
+.ss-display img {
+  width: 100%; height: auto; display: block;
+  transition: opacity .3s;
+}
+.ss-bar {
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 36px; background: rgba(13,13,13,0.9);
+  display: flex; align-items: center; padding: 0 14px; gap: 7px;
+  border-bottom: 1px solid var(--border);
+}
+.ss-dot { width: 11px; height: 11px; border-radius: 50%; }
+.ss-dot:nth-child(1) { background: #ff5f57; }
+.ss-dot:nth-child(2) { background: #febc2e; }
+.ss-dot:nth-child(3) { background: #28c840; }
+.ss-title {
+  flex: 1; text-align: center;
+  font-family: var(--mono); font-size: 11px; color: var(--text3);
+}
+
+/* ── Install ── */
+.install-section {
+  padding: 100px 20px;
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.install-inner { max-width: 1200px; margin: 0 auto; }
+.install-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 60px; align-items: start;
+  margin-top: 48px;
+}
+@media(max-width: 768px) { .install-grid { grid-template-columns: 1fr; } }
+
+.install-steps { display: flex; flex-direction: column; gap: 24px; }
+.step {
+  display: flex; gap: 20px; align-items: flex-start;
+}
+.step-num {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  background: var(--red-dim); border: 1px solid var(--red);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 12px; color: var(--red);
+  font-weight: 700;
+}
+.step-content h4 {
+  font-family: var(--display); font-size: 16px; font-weight: 600;
+  letter-spacing: 1px; margin-bottom: 4px;
+}
+.step-content p { font-size: 13px; color: var(--text2); }
+
+.code-blocks { display: flex; flex-direction: column; gap: 12px; }
+.code-block {
+  background: #0a0a0a;
+  border: 1px solid var(--border);
+  border-radius: 8px; overflow: hidden;
+}
+.code-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+.code-label {
+  font-family: var(--mono); font-size: 10px;
+  color: var(--text3); letter-spacing: 1px; text-transform: uppercase;
+}
+.copy-btn {
+  font-family: var(--mono); font-size: 10px; color: var(--text2);
+  background: none; border: 1px solid var(--border);
+  border-radius: 3px; padding: 3px 10px; cursor: pointer;
+  transition: all .2s; letter-spacing: 1px;
+}
+.copy-btn:hover { color: var(--red2); border-color: var(--red); }
+.copy-btn.copied { color: var(--green); border-color: var(--green); }
+.code-body {
+  padding: 16px 20px;
+  font-family: var(--mono); font-size: 13px;
+  color: var(--text2); line-height: 2;
+  overflow-x: auto;
+}
+.code-body .cmd { color: var(--text); }
+.code-body .comment { color: var(--text3); }
+.code-body .highlight { color: var(--red2); }
+
+/* ── Brands ── */
+.brands-section { padding: 80px 20px; }
+.brands-inner { max-width: 1200px; margin: 0 auto; text-align: center; }
+.brands-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px; margin-top: 48px;
+}
+.brand-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 24px 16px; text-align: center;
+  transition: border-color .25s;
+}
+.brand-card:hover { border-color: var(--red); }
+.brand-card .icon { font-size: 28px; margin-bottom: 10px; }
+.brand-card h4 {
+  font-family: var(--display); font-size: 16px; font-weight: 600;
+  letter-spacing: 1px; margin-bottom: 4px;
+}
+.brand-card p { font-size: 12px; color: var(--text2); }
+.brand-badge {
+  display: inline-block; margin-top: 8px;
+  font-family: var(--mono); font-size: 9px; letter-spacing: 1px;
+  padding: 2px 8px; border-radius: 3px;
+}
+.badge-full { background: rgba(34,204,102,0.12); color: var(--green); border: 1px solid rgba(34,204,102,0.3); }
+.badge-std  { background: rgba(51,153,255,0.12); color: var(--blue);  border: 1px solid rgba(51,153,255,0.3); }
+
+/* ── CTA ── */
+.cta-section {
+  padding: 100px 20px; text-align: center;
+  position: relative; overflow: hidden;
+}
+.cta-section::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 70% 60% at 50% 50%, rgba(204,34,34,0.08), transparent 70%);
+}
+.cta-section h2 {
+  font-family: var(--display); font-size: clamp(30px, 5vw, 52px);
+  font-weight: 700; letter-spacing: 3px;
+  margin-bottom: 16px; position: relative; z-index: 1;
+}
+.cta-section p {
+  font-size: 15px; color: var(--text2);
+  margin-bottom: 36px; position: relative; z-index: 1;
+}
+
+/* ── Footer ── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 40px 20px; text-align: center;
+  background: var(--bg2);
+}
+footer .footer-logo {
+  display: flex; align-items: center; justify-content: center;
+  gap: 10px; margin-bottom: 16px;
+  font-family: var(--display); font-size: 16px; letter-spacing: 2px; color: var(--text2);
+}
+footer .footer-logo svg { width: 20px; height: 24px; opacity: 0.6; }
+footer p {
+  font-family: var(--mono); font-size: 11px; color: var(--text3);
+  letter-spacing: 1px;
+}
+footer a { color: var(--red); text-decoration: none; }
+footer a:hover { color: var(--red2); }
+
+/* ── Separator ── */
+.sep {
+  width: 100%; max-width: 1200px; margin: 0 auto;
+  height: 1px; background: var(--border);
+}
+
+/* ── Animations ── */
+.reveal {
+  opacity: 0; transform: translateY(24px);
+  transition: opacity .6s ease, transform .6s ease;
+}
+.reveal.visible { opacity: 1; transform: none; }
+
+@media(max-width: 640px) {
+  nav { padding: 0 20px; }
+  .nav-links { display: none; }
+  .hero-stats { gap: 28px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<nav>
+  <a class="nav-logo" href="#">
+    <svg viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M2,2 L98,2 L70,26 L53,26 L50,120 L47,26 L30,26 Z" fill="#cc2222"/>
+    </svg>
+    <span>LEGION <em>LINUX</em> TOOLKIT</span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="#features">Features</a></li>
+    <li><a href="#screenshots">Screenshots</a></li>
+    <li><a href="#install">Install</a></li>
+    <li><a href="#brands">Devices</a></li>
+  </ul>
+  <a class="nav-cta" href="https://github.com/v4cachy/legion-linux-toolkit" target="_blank">GitHub →</a>
+</nav>
+
+<!-- ── HERO ── -->
+<div class="hero">
+  <div class="hero-badge"><span>▸</span> v0.6.1 BETA · 20260320</div>
+
+  <svg class="hero-logo" viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M2,2 L98,2 L70,26 L53,26 L50,120 L47,26 L30,26 Z" fill="#cc2222"/>
+  </svg>
+
+  <h1>LEGION <em>LINUX</em><br>TOOLKIT</h1>
+  <p class="hero-sub">Power Management for Lenovo Laptops</p>
+  <p class="hero-desc">
+    A native Linux dashboard for full hardware control — power profiles,
+    RGB keyboard, fan monitoring, display settings, overclock and more.
+    Built for CachyOS · KDE Plasma 6 · Wayland.
+  </p>
+  <div class="hero-btns">
+    <a class="btn-primary" href="#install">
+      <span>↓</span> Install Now
+    </a>
+    <a class="btn-secondary" href="https://github.com/v4cachy/legion-linux-toolkit" target="_blank">
+      <span>★</span> Star on GitHub
+    </a>
+  </div>
+  <div class="hero-stats">
+    <div class="stat">
+      <div class="stat-val">6</div>
+      <div class="stat-lbl">Lenovo Brands</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val">11</div>
+      <div class="stat-lbl">Languages</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val">10</div>
+      <div class="stat-lbl">Dashboard Pages</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val">MIT</div>
+      <div class="stat-lbl">License</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── FEATURES ── -->
+<section class="features" id="features">
+  <div class="features-inner">
+    <div class="features-header reveal">
+      <p class="section-label">What it offers</p>
+      <h2 class="section-title">Everything you need, nothing you don't</h2>
+      <p class="section-desc">Full hardware control from a single dashboard. No background bloat, no Windows required.</p>
+    </div>
+    <div class="cards-grid">
+      <div class="card reveal">
+        <div class="card-icon">⚡</div>
+        <h3>Power Profiles</h3>
+        <p>Switch between Quiet, Balanced, Performance and Custom profiles. Also cycle with Fn+Q. Auto-switch on AC connect or battery.</p>
+      </div>
+      <div class="card reveal">
+        <div class="card-icon">🌈</div>
+        <h3>RGB Keyboard</h3>
+        <p>4-zone RGB control via LegionAura — Static, Breath, Wave, Hue and Off effects. Per-zone colour pickers with quick presets.</p>
+      </div>
+      <div class="card reveal">
+        <div class="card-icon">🎡</div>
+        <h3>Fan Monitoring</h3>
+        <p>Live animated fan icons with real-time RPM. Auto or Full Speed modes. Fan curves baked into each power profile.</p>
+      </div>
+      <div class="card reveal">
+        <div class="card-icon">🖥️</div>
+        <h3>Display Control</h3>
+        <p>Screen brightness slider. Independent resolution and refresh rate selectors. Display Overdrive and G-Sync toggles.</p>
+      </div>
+      <div class="card reveal">
+        <div class="card-icon">🔋</div>
+        <h3>Battery Care</h3>
+        <p>Conservation mode (~60% cap), Rapid Charge, USB Charging. ThinkPad charge threshold controls with custom start/stop %.</p>
+      </div>
+      <div class="card reveal">
+        <div class="card-icon">🎮</div>
+        <h3>GPU Mode Switching</h3>
+        <p>Switch between Hybrid, NVIDIA-only and Integrated GPU modes via envycontrol — directly from the home screen.</p>
+      </div>
+      <div class="card reveal">
+        <div class="card-icon">🚀</div>
+        <h3>Overclock</h3>
+        <p>CPU max/min frequency sliders, TDP PL1/PL2 controls and GPU core/memory offset with a master enable toggle for safety.</p>
+      </div>
+      <div class="card reveal">
+        <div class="card-icon">🌍</div>
+        <h3>11 Languages</h3>
+        <p>First-run wizard lets you choose your language. English, Français, Deutsch, Español, Türkçe, Русский, 中文, 日本語 and more.</p>
+      </div>
+      <div class="card reveal">
+        <div class="card-icon">🔍</div>
+        <h3>Hardware Detection</h3>
+        <p>One-time hardware scan on first launch. Detects your Lenovo brand and shows only the features your device actually supports.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── SCREENSHOTS ── -->
+<section class="screenshots-section" id="screenshots">
+  <div class="screenshots-inner">
+    <div class="ss-header reveal">
+      <p class="section-label">See it in action</p>
+      <h2 class="section-title">Every page, purpose-built</h2>
+    </div>
+    <div class="ss-tabs reveal" id="ssTabs">
+      <div class="ss-tab active" data-img="screenshots/Home.png"     data-title="Home">🏠 Home</div>
+      <div class="ss-tab"        data-img="screenshots/Battery.png"  data-title="Battery">🔋 Battery</div>
+      <div class="ss-tab"        data-img="screenshots/Perf.png"     data-title="Performance">⚡ Performance</div>
+      <div class="ss-tab"        data-img="screenshots/Display.png"  data-title="Display">🖥️ Display</div>
+      <div class="ss-tab"        data-img="screenshots/Keyboard.png" data-title="Keyboard">⌨️ Keyboard</div>
+      <div class="ss-tab"        data-img="screenshots/system.png"   data-title="System">⚙️ System</div>
+      <div class="ss-tab"        data-img="screenshots/fan.png"      data-title="Fan">🌀 Fan</div>
+      <div class="ss-tab"        data-img="screenshots/OC.png"       data-title="Overclock">🚀 Overclock</div>
+      <div class="ss-tab"        data-img="screenshots/Action.png"   data-title="Actions">🎯 Actions</div>
+      <div class="ss-tab"        data-img="screenshots/about.png"    data-title="About">ℹ️ About</div>
+    </div>
+    <div class="ss-display reveal">
+      <div class="ss-bar">
+        <div class="ss-dot"></div><div class="ss-dot"></div><div class="ss-dot"></div>
+        <div class="ss-title" id="ssTitle">Home — Legion Linux Toolkit</div>
+      </div>
+      <img id="ssImg" src="screenshots/Home.png" alt="Screenshot" style="margin-top:36px;"/>
+    </div>
+  </div>
+</section>
+
+<!-- ── INSTALL ── -->
+<section class="install-section" id="install">
+  <div class="install-inner">
+    <div class="reveal">
+      <p class="section-label">Get started</p>
+      <h2 class="section-title">Install in seconds</h2>
+      <p class="section-desc">One script handles everything — dependencies, hardware detection, daemon service and tray launch.</p>
+    </div>
+    <div class="install-grid">
+      <div class="install-steps reveal">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <h4>Clone the repo</h4>
+            <p>Download the latest code from GitHub to your machine.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <h4>Run the installer</h4>
+            <p>The installer auto-detects your Lenovo brand and installs only what your device needs.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <h4>Setup wizard</h4>
+            <p>On first launch, choose your language and let the hardware scan run once. Done.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <h4>Stay updated</h4>
+            <p>Run update.sh anytime to pull the latest changes from GitHub and restart everything automatically.</p>
+          </div>
+        </div>
+      </div>
+      <div class="code-blocks reveal">
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-label">Install</span>
+            <button class="copy-btn" onclick="copyCode(this, 'install-code')">Copy</button>
+          </div>
+          <div class="code-body" id="install-code">
+<span class="comment"># Clone and install</span>
+<span class="cmd">git clone https://github.com/v4cachy/<span class="highlight">legion-linux-toolkit</span></span>
+<span class="cmd">cd legion-linux-toolkit</span>
+<span class="cmd">sudo bash <span class="highlight">install.sh</span></span>
+          </div>
+        </div>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-label">Update</span>
+            <button class="copy-btn" onclick="copyCode(this, 'update-code')">Copy</button>
+          </div>
+          <div class="code-body" id="update-code">
+<span class="comment"># Pull latest from GitHub</span>
+<span class="cmd">cd ~/legion-toolkit</span>
+<span class="cmd">sudo bash <span class="highlight">update.sh</span></span>
+          </div>
+        </div>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-label">Requirements</span>
+          </div>
+          <div class="code-body">
+<span class="comment"># Auto-installed by install.sh</span>
+<span class="cmd">python-pyqt6  qt6-wayland  libnotify  kscreen</span>
+<span class="comment"># Optional (auto by brand)</span>
+<span class="cmd">lenovolegionlinux  envycontrol  legionaura</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── BRANDS ── -->
+<section class="brands-section" id="brands">
+  <div class="brands-inner">
+    <div class="reveal">
+      <p class="section-label">Supported devices</p>
+      <h2 class="section-title">Works across Lenovo brands</h2>
+      <p class="section-desc" style="margin:0 auto;">Hardware detection adapts the interface to show only the features your device supports.</p>
+    </div>
+    <div class="brands-grid">
+      <div class="brand-card reveal">
+        <div class="icon">🎮</div>
+        <h4>Legion</h4>
+        <p>Full RGB, fan control, G-Sync, GPU switching, OC</p>
+        <span class="brand-badge badge-full">Full Support</span>
+      </div>
+      <div class="brand-card reveal">
+        <div class="icon">🎮</div>
+        <h4>LOQ</h4>
+        <p>Power profiles, fan RPM, GPU switching</p>
+        <span class="brand-badge badge-full">Full Support</span>
+      </div>
+      <div class="brand-card reveal">
+        <div class="icon">💼</div>
+        <h4>ThinkPad</h4>
+        <p>Charge thresholds, ThinkLight, fan levels, mic LED</p>
+        <span class="brand-badge badge-full">Full + Extras</span>
+      </div>
+      <div class="brand-card reveal">
+        <div class="icon">🔄</div>
+        <h4>Yoga</h4>
+        <p>Hinge mode, auto-rotate, ambient light sensor</p>
+        <span class="brand-badge badge-full">Full + Extras</span>
+      </div>
+      <div class="brand-card reveal">
+        <div class="icon">💻</div>
+        <h4>IdeaPad</h4>
+        <p>Power profiles, battery, fn lock, camera</p>
+        <span class="brand-badge badge-std">Standard</span>
+      </div>
+      <div class="brand-card reveal">
+        <div class="icon">📋</div>
+        <h4>ThinkBook</h4>
+        <p>Power profiles, battery, fn lock, fingerprint</p>
+        <span class="brand-badge badge-std">Standard</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ── -->
+<section class="cta-section">
+  <h2 class="reveal">Ready to take control?</h2>
+  <p class="reveal">Free, open source, and made for Linux.</p>
+  <div class="hero-btns reveal">
+    <a class="btn-primary" href="https://github.com/v4cachy/legion-linux-toolkit" target="_blank">View on GitHub →</a>
+    <a class="btn-secondary" href="#install">Installation Guide</a>
+  </div>
+</section>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div class="footer-logo">
+    <svg viewBox="0 0 100 120" fill="none">
+      <path d="M2,2 L98,2 L70,26 L53,26 L50,120 L47,26 L30,26 Z" fill="#cc2222"/>
+    </svg>
+    Legion Linux Toolkit
+  </div>
+  <p>v0.6.1-BETA · MIT License · <a href="https://github.com/v4cachy/legion-linux-toolkit" target="_blank">github.com/v4cachy/legion-linux-toolkit</a></p>
+  <p style="margin-top:8px;">Made with ❤️ for Linux on Lenovo</p>
+</footer>
+
+<script>
+// ── Screenshot tabs ──
+document.querySelectorAll('.ss-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.ss-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const img = document.getElementById('ssImg');
+    img.style.opacity = '0';
+    setTimeout(() => {
+      img.src = tab.dataset.img;
+      img.alt = tab.dataset.title;
+      document.getElementById('ssTitle').textContent = tab.dataset.title + ' — Legion Linux Toolkit';
+      img.style.opacity = '1';
+    }, 150);
+  });
+});
+
+// ── Copy buttons ──
+function copyCode(btn, id) {
+  const el = document.getElementById(id);
+  const text = el ? el.innerText.replace(/^\s+/gm, '').trim() : '';
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+// ── Reveal on scroll ──
+const observer = new IntersectionObserver(entries => {
+  entries.forEach((e, i) => {
+    if (e.isIntersecting) {
+      setTimeout(() => e.target.classList.add('visible'), i * 80);
+      observer.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>
