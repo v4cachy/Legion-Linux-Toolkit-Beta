@@ -5008,31 +5008,12 @@ class LegionDashboard(QMainWindow):
         self.page_title.setStyleSheet(
             f"color:{C_TEXT};font-size:16px;font-weight:bold;letter-spacing:0.5px;")
         tbl.addWidget(self.page_title)
-        tbl.addSpacing(8)
-
-        # Brand/model pill
-        _brand = HW.get("brand","legion").title() if HW else "Legion"
-        _model = HW.get("model","Unknown") if HW else "Unknown"
-        brand_lbl = QLabel(f"{_brand}  ·  {_model}")
-        brand_lbl.setStyleSheet(
-            f"color:{C_TEXT3};font-size:10px;"
-            f"background:{C_CARD2};border:1px solid {C_BORDER};"
-            f"border-radius:8px;padding:2px 10px;")
-        tbl.addWidget(brand_lbl)
         tbl.addStretch()
 
-        # AC indicator
-        self.ac_ind = QLabel("⚡ AC")
-        self.ac_ind.setStyleSheet(
-            f"color:{C_GREEN};font-size:11px;font-weight:bold;"
-            f"background:{C_CARD2};border:1px solid {C_BORDER};"
-            f"border-radius:8px;padding:2px 10px;margin-right:8px;")
-        tbl.addWidget(self.ac_ind)
-
-        # Profile badge
-        self.badge = QLabel("—")
+        # Hidden badge kept for _refresh_badge compat — not shown
+        self.badge = QLabel(""); self.badge.hide()
+        self.ac_ind = QLabel(""); self.ac_ind.hide()
         self._refresh_badge(rdsys(PLATFORM_PROFILE,"balanced"))
-        tbl.addWidget(self.badge)
         right.addWidget(topbar)
 
         self.stack = QStackedWidget()
