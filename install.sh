@@ -77,6 +77,29 @@ if [[ "$BRAND" == "Legion" || "$BRAND" == "LOQ" ]]; then
     else
         ok "lenovo_legion module already loaded"
     fi
+
+    # Check if module loaded correctly — if not, try force-load
+    # This fixes Legion Slim 5 16APH8 (82Y9) and similar models that fail with error -5
+    sleep 1
+    if lsmod 2>/dev/null | grep -q "lenovo_legion"; then
+        if dmesg 2>/dev/null | grep -q "legion_laptop not loaded\|probe.*failed with error"; then
+            warn "Module loaded but ACPI probe failed — applying force-load fix…"
+            echo 'options legion_laptop force=1' > /etc/modprobe.d/legion_laptop_force.conf
+            modprobe -r legion_laptop 2>/dev/null || true
+            modprobe legion_laptop force=1 2>/dev/null \
+                && ok "Force-load applied — legion_laptop now active" \
+                || warn "Force-load failed — some hardware features may be unavailable"
+        fi
+    else
+        # Module not loaded at all — try force-load
+        if modinfo legion_laptop &>/dev/null; then
+            warn "Module not loaded — trying force-load for this model…"
+            echo 'options legion_laptop force=1' > /etc/modprobe.d/legion_laptop_force.conf
+            modprobe legion_laptop force=1 2>/dev/null \
+                && ok "Force-load successful" \
+                || warn "Module would not load — hardware features via legion_laptop unavailable"
+        fi
+    fi
 fi
 
 # envycontrol — Legion / LOQ (GPU switching)
