@@ -3811,7 +3811,7 @@ class SystemPage(QWidget):
 
         # Input devices
         ic, il = make_card("Input Devices")
-        for i, (title, desc, path, notif_on, notif_off) in enumerate([
+        input_rows = [
             ("Fn Lock",   "Swap Fn and media keys so F1–F12 work as standard keys.",
              FN_LOCK,   "Fn Lock ON — F1-F12 as function keys",  "Fn Lock OFF — media keys"),
             ("Super Key", "Enable or disable the Windows/Super key.",
@@ -3820,12 +3820,79 @@ class SystemPage(QWidget):
              TOUCHPAD, "Touchpad Enabled",   "Touchpad Disabled"),
             ("Camera",    "Hardware kill switch for the built-in webcam.",
              CAMERA_POWER,"Camera Enabled",  "Camera Disabled 🔒"),
-        ]):
+        ]
+        for i, (title, desc, path, notif_on, notif_off) in enumerate(input_rows):
             il.addWidget(NotifyToggle(title, desc, path,
                                       notif_title=title,
                                       notif_on=notif_on, notif_off=notif_off))
-            if i < 3: il.addWidget(make_div())
+            if i < len(input_rows)-1: il.addWidget(make_div())
         root.addWidget(ic)
+
+        # ── TrackPoint (ThinkPad only) ────────────────────────────────────────
+        if HW.get("tp_trackpoint"):
+            tp_c, tp_l = make_card("🔴  TrackPoint")
+            tp_l.addWidget(_mk_lbl(
+                "Adjust the red TrackPoint pointing stick sensitivity and speed.",
+                C_TEXT2, size=11))
+            tp_l.addWidget(make_div())
+
+            def _tp_serio_path(attr: str) -> "Path | None":
+                try:
+                    for d in Path("/sys/bus/serio/devices").iterdir():
+                        p = d / attr
+                        if p.exists(): return p
+                except: pass
+                return None
+
+            def _tp_slider(label, attr, lo, hi, color):
+                path = _tp_serio_path(attr)
+                row = QHBoxLayout(); row.setSpacing(12)
+                lb = QLabel(label); lb.setFixedWidth(100)
+                lb.setStyleSheet(f"color:{C_TEXT};font-size:12px;background:transparent;")
+                sl = QSlider(Qt.Orientation.Horizontal)
+                sl.setRange(lo, hi)
+                try: sl.setValue(int(path.read_text().strip())) if path else sl.setValue((lo+hi)//2)
+                except: sl.setValue((lo+hi)//2)
+                sl.setStyleSheet(
+                    f"QSlider::groove:horizontal{{background:{C_BORDER};height:6px;border-radius:3px;}}"
+                    f"QSlider::handle:horizontal{{background:{color};width:16px;height:16px;border-radius:8px;margin:-5px 0;}}"
+                    f"QSlider::sub-page:horizontal{{background:{color};border-radius:3px;}}"
+                )
+                vl = QLabel(str(sl.value())); vl.setFixedWidth(30)
+                vl.setStyleSheet(f"color:{color};font-size:12px;font-weight:bold;background:transparent;")
+                sl.valueChanged.connect(lambda v, l=vl, p=path: (l.setText(str(v)),
+                    _tp_serio_path(attr) and _tp_serio_path(attr).write_text(str(v))))
+                row.addWidget(lb); row.addWidget(sl); row.addWidget(vl)
+                return row
+
+            tp_l.addLayout(_tp_slider("Sensitivity", "sensitivity", 1, 255, C_RED))
+            tp_l.addLayout(_tp_slider("Speed",       "speed",       1, 255, C_ORANGE))
+            root.addWidget(tp_c)
+
+        # ── Yoga auto-rotate ──────────────────────────────────────────────────
+        if HW.get("yoga_hinge") or HW.get("als_sensor"):
+            yr_c, yr_l = make_card("🔄  Yoga — Auto Rotate")
+            yr_l.addWidget(_mk_lbl(
+                "Lock or unlock automatic screen rotation based on hinge/accelerometer.",
+                C_TEXT2, size=11))
+            yr_l.addWidget(make_div())
+
+            rot_row = QHBoxLayout(); rot_row.setSpacing(16)
+            rot_text = QVBoxLayout(); rot_text.setSpacing(2)
+            rot_t = QLabel("Orientation Lock")
+            rot_t.setStyleSheet(f"color:{C_TEXT};font-size:13px;font-weight:bold;background:transparent;")
+            rot_d = QLabel("When ON, rotation is locked to current orientation.")
+            rot_d.setStyleSheet(f"color:{C_TEXT2};font-size:11px;background:transparent;")
+            rot_text.addWidget(rot_t); rot_text.addWidget(rot_d)
+            rot_row.addLayout(rot_text, 1)
+
+            self._rot_lock_tog = ToggleSwitch(path=None, on_change=self._on_rot_lock, read_val="0")
+            rot_row.addWidget(self._rot_lock_tog, 0, Qt.AlignmentFlag.AlignVCenter)
+            yr_l.addLayout(rot_row)
+            self._rot_status = QLabel("")
+            self._rot_status.setStyleSheet(f"color:{C_GREEN};font-size:11px;background:transparent;")
+            yr_l.addWidget(self._rot_status)
+            root.addWidget(yr_c)
 
         # Appearance — Theme only
         ac, al = make_card("Appearance")
@@ -3891,6 +3958,28 @@ class SystemPage(QWidget):
             root.addWidget(tpk_c)
 
         root.addStretch()
+
+    def _on_rot_lock(self, locked: bool):
+        """Toggle screen orientation lock via iio-sensor-proxy / monitor-sensor."""
+        def _do():
+            try:
+                if locked:
+                    subprocess.Popen(["gdbus", "call", "--session",
+                        "--dest", "net.hadess.SensorProxy",
+                        "--object-path", "/net/hadess/SensorProxy",
+                        "--method", "net.hadess.SensorProxy.ClaimAccelerometer"],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    self._rot_status.setText("✓  Rotation locked")
+                else:
+                    subprocess.Popen(["gdbus", "call", "--session",
+                        "--dest", "net.hadess.SensorProxy",
+                        "--object-path", "/net/hadess/SensorProxy",
+                        "--method", "net.hadess.SensorProxy.ReleaseAccelerometer"],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    self._rot_status.setText("✓  Auto-rotate enabled")
+            except Exception as e:
+                self._rot_status.setText(f"✗  {e}")
+        threading.Thread(target=_do, daemon=True).start()
 
     def _on_theme(self, idx):
         """Apply theme immediately by adjusting the main window stylesheet."""
@@ -4469,8 +4558,80 @@ class FanPage(QWidget):
         il.addWidget(info_text)
         root.addWidget(ic)
 
+        # ── ThinkPad fan levels (only on ThinkPad) ────────────────────────────
+        if HW.get("tp_fan_control"):
+            tfc, tfl = make_card("🌀  ThinkPad Fan Control")
+            tfl.addWidget(_mk_lbl(
+                "ThinkPad fan levels via /proc/acpi/ibm/fan.\n"
+                "Level 0 = off  ·  1–7 = increasing speed  ·  Auto = firmware control",
+                C_TEXT2, size=11))
+            tfl.addWidget(make_div())
+
+            # Read current level
+            def _get_tp_fan() -> str:
+                try:
+                    txt = Path("/proc/acpi/ibm/fan").read_text()
+                    for line in txt.splitlines():
+                        if line.startswith("level:"): return line.split(":")[1].strip()
+                except: pass
+                return "auto"
+
+            level_row = QHBoxLayout(); level_row.setSpacing(12)
+            lv_lbl = QLabel("Fan Level:")
+            lv_lbl.setStyleSheet(f"color:{C_TEXT};font-size:12px;background:transparent;")
+            self._tp_fan_combo = QComboBox()
+            self._tp_fan_combo.setStyleSheet(combo_style())
+            self._tp_fan_combo.setFixedHeight(34)
+            levels = ["auto", "0", "1", "2", "3", "4", "5", "6", "7", "disengaged"]
+            level_labels = {
+                "auto": "Auto (firmware)", "0": "0 — Off",
+                "1": "1 — Very quiet", "2": "2 — Quiet",
+                "3": "3 — Low", "4": "4 — Medium",
+                "5": "5 — High", "6": "6 — Very high",
+                "7": "7 — Maximum", "disengaged": "Disengaged (max RPM)"
+            }
+            cur_lv = _get_tp_fan()
+            for lv in levels:
+                self._tp_fan_combo.addItem(level_labels.get(lv, lv), lv)
+            cur_idx = levels.index(cur_lv) if cur_lv in levels else 0
+            self._tp_fan_combo.setCurrentIndex(cur_idx)
+            level_row.addWidget(lv_lbl); level_row.addWidget(self._tp_fan_combo); level_row.addStretch()
+            tfl.addLayout(level_row)
+
+            tp_fan_apply = QPushButton("Apply Fan Level")
+            tp_fan_apply.setFixedHeight(32)
+            tp_fan_apply.setStyleSheet(
+                f"background:{C_ACCENT};color:#fff;border:none;"
+                f"border-radius:6px;font-size:12px;padding:0 16px;")
+            tp_fan_apply.setCursor(Qt.CursorShape.PointingHandCursor)
+            tp_fan_apply.clicked.connect(self._apply_tp_fan)
+            self._tp_fan_status = QLabel("")
+            self._tp_fan_status.setStyleSheet(f"color:{C_GREEN};font-size:11px;background:transparent;")
+            tp_btn_row = QHBoxLayout()
+            tp_btn_row.addWidget(tp_fan_apply); tp_btn_row.addWidget(self._tp_fan_status); tp_btn_row.addStretch()
+            tfl.addLayout(tp_btn_row)
+            root.addWidget(tfc)
+
         root.addStretch()
         self._refresh_rpm()
+
+    def _apply_tp_fan(self):
+        level = self._tp_fan_combo.currentData()
+        def _do():
+            try:
+                r = subprocess.run(
+                    ["pkexec", "sh", "-c",
+                     f"echo 'level {level}' > /proc/acpi/ibm/fan"],
+                    capture_output=True, text=True, timeout=8
+                )
+                if r.returncode == 0:
+                    self._tp_fan_status.setText(f"✓  Fan level → {level}")
+                    send_notif("ThinkPad Fan", f"Fan level set to {level}", "computer")
+                else:
+                    self._tp_fan_status.setText(f"✗  {r.stderr.strip()[:80]}")
+            except Exception as e:
+                self._tp_fan_status.setText(f"✗  {e}")
+        threading.Thread(target=_do, daemon=True).start()
 
     def _set_mode(self, mode: str):
         self._mode = mode
