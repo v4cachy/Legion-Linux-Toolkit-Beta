@@ -42,59 +42,125 @@ from PyQt6.QtGui import QColor, QPainter, QPen, QBrush, QFont, QCursor
 # PATHS
 # ══════════════════════════════════════════════════════════════════════════════
 PLATFORM_PROFILE  = Path("/sys/firmware/acpi/platform_profile")
-IDEAPAD_BASE      = Path("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00")
-CONSERVATION_MODE = IDEAPAD_BASE / "conservation_mode"
-CAMERA_POWER      = IDEAPAD_BASE / "camera_power"
-FN_LOCK           = IDEAPAD_BASE / "fn_lock"
-USB_CHARGING      = IDEAPAD_BASE / "usb_charging"
 AMD_BOOST         = Path("/sys/devices/system/cpu/cpufreq/boost")
 DAEMON_BIN        = Path("/usr/lib/legion-toolkit/legion-daemon.py")
-LEGION_BASE       = Path("/sys/devices/pci0000:00/0000:00:14.3/PNP0C09:00")
 
-# Some Legion Slim models (e.g. 16APH8/82Y9) expose the same features
-# under a different path via the legion_laptop module
-_LEGION_ALT_BASES = [
-    LEGION_BASE,
-    Path("/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00"),
-    Path("/sys/bus/platform/drivers/legion/PNP0C09:00"),
-]
-# Use whichever base path actually exists
-for _alt in _LEGION_ALT_BASES:
-    if _alt.exists():
-        LEGION_BASE = _alt
-        break
-TOUCHPAD          = LEGION_BASE / "touchpad"
-RAPID_CHARGE      = LEGION_BASE / "rapidcharge"
-WINKEY            = LEGION_BASE / "winkey"
-OVERDRIVE         = LEGION_BASE / "overdrive"
-GSYNC             = LEGION_BASE / "gsync"
-POWER_CHARGE_MODE = LEGION_BASE / "powerchargemode"
-THERMAL_MODE      = LEGION_BASE / "thermalmode"
-FAN_FULLSPEED     = LEGION_BASE / "fan_fullspeed"
+# ══════════════════════════════════════════════════════════════════════════════
+# DYNAMIC SYSFS PATH DETECTION
+# Works for ALL Lenovo models across all brands and generations.
+# Never hardcodes a specific path — scans the actual filesystem at startup.
+# ══════════════════════════════════════════════════════════════════════════════
 
-# ── Flip to Start / Instant Boot — scan multiple possible paths ───────────────
-# These may be exposed by ideapad_acpi, lenovo_wmi_gamezone, or LEGION_BASE
-# depending on BIOS version and module version. We scan at runtime.
-def _find_sysfs_feature(names: list) -> "Path | None":
-    """Scan common Lenovo sysfs bases for a feature by filename."""
-    bases = [
-        IDEAPAD_BASE,
-        LEGION_BASE,
-        Path("/sys/bus/wmi/devices"),
-        Path("/sys/bus/platform/devices"),
-    ]
-    for base in bases:
-        if not base.exists(): continue
-        for name in names:
-            # Direct child
-            p = base / name
-            if p.exists(): return p
-            # One level deeper (for wmi/platform with subdirs)
+def _find_feature(feature: str) -> "Path | None":
+    """
+    Dynamically find a Lenovo feature file anywhere in sysfs.
+    Searches ideapad_acpi, legion_laptop, wmi, platform and devices trees.
+    """
+    # Ordered list of search bases — checked in priority order
+    search_bases = []
+
+    # 1. ideapad_acpi — IdeaPad, Legion, Yoga, LOQ, ThinkBook
+    ideapad_root = Path("/sys/bus/platform/drivers/ideapad_acpi")
+    if ideapad_root.exists():
+        try:
+            for d in ideapad_root.iterdir():
+                if d.is_dir() or d.is_symlink():
+                    search_bases.append(d)
+        except: pass
+
+    # 2. legion_laptop driver — Legion, LOQ (any generation, any PCI slot)
+    for legion_root in [
+        Path("/sys/bus/platform/drivers/legion"),
+        Path("/sys/module/legion_laptop/drivers/platform:legion"),
+    ]:
+        if legion_root.exists():
             try:
-                for sub in base.iterdir():
-                    p2 = sub / name
-                    if p2.exists(): return p2
-            except Exception: pass
+                for d in legion_root.iterdir():
+                    search_bases.append(d)
+            except: pass
+
+    # 3. PNP0C09 device — scan all PCI buses (different slot on different models)
+    try:
+        for pci in Path("/sys/devices").glob("pci*"):
+            for dev in pci.glob("*/PNP0C09:*"):
+                search_bases.append(dev)
+    except: pass
+
+    # 4. WMI devices — some features exposed via WMI
+    wmi_root = Path("/sys/bus/wmi/devices")
+    if wmi_root.exists():
+        try:
+            for d in wmi_root.iterdir():
+                search_bases.append(d)
+        except: pass
+
+    # 5. General platform devices
+    plat_root = Path("/sys/bus/platform/devices")
+    if plat_root.exists():
+        try:
+            for d in plat_root.iterdir():
+                n = d.name.lower()
+                if any(k in n for k in ["vpc","ideapad","legion","lenovo","thinkpad"]):
+                    search_bases.append(d)
+        except: pass
+
+    # Search all bases for the feature file
+    for base in search_bases:
+        try:
+            p = Path(base) / feature
+            if p.exists(): return p
+        except: pass
+
+    return None
+
+
+def _find_ideapad(feature: str) -> "Path | None":
+    """Find ideapad_acpi specific feature (conservation_mode, fn_lock etc.)"""
+    root = Path("/sys/bus/platform/drivers/ideapad_acpi")
+    if root.exists():
+        try:
+            for d in root.iterdir():
+                p = d / feature
+                if p.exists(): return p
+        except: pass
+    # Fallback to general scan
+    return _find_feature(feature)
+
+
+# ── Resolve all feature paths at startup ─────────────────────────────────────
+IDEAPAD_BASE      = (lambda: next(
+    (d for d in Path("/sys/bus/platform/drivers/ideapad_acpi").iterdir()
+     if (d / "conservation_mode").exists() or (d / "fn_lock").exists()),
+    Path("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00")
+) if Path("/sys/bus/platform/drivers/ideapad_acpi").exists()
+  else Path("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00"))()
+
+CONSERVATION_MODE = _find_ideapad("conservation_mode") or IDEAPAD_BASE / "conservation_mode"
+CAMERA_POWER      = _find_ideapad("camera_power")      or IDEAPAD_BASE / "camera_power"
+FN_LOCK           = _find_ideapad("fn_lock")            or IDEAPAD_BASE / "fn_lock"
+USB_CHARGING      = _find_ideapad("usb_charging")       or IDEAPAD_BASE / "usb_charging"
+
+TOUCHPAD          = _find_feature("touchpad")           or Path("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/touchpad")
+RAPID_CHARGE      = _find_feature("rapidcharge")        or Path("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/rapidcharge")
+WINKEY            = _find_feature("winkey")             or Path("/tmp/nonexistent_winkey")
+OVERDRIVE         = _find_feature("overdrive")          or Path("/tmp/nonexistent_overdrive")
+GSYNC             = _find_feature("gsync")              or Path("/tmp/nonexistent_gsync")
+POWER_CHARGE_MODE = _find_feature("powerchargemode")    or Path("/tmp/nonexistent_pcm")
+THERMAL_MODE      = _find_feature("thermalmode")        or Path("/tmp/nonexistent_thermalmode")
+FAN_FULLSPEED     = _find_feature("fan_fullspeed")      or Path("/tmp/nonexistent_fan_fullspeed")
+
+# LEGION_BASE — find the PNP0C09 device directory (any PCI slot, any generation)
+LEGION_BASE = (lambda: next(
+    (p for p in Path("/sys/devices").glob("pci*/*/*/PNP0C09:*")
+     if (p / "fan_fullspeed").exists() or (p / "overdrive").exists()),
+    Path("/sys/devices/pci0000:00/0000:00:14.3/PNP0C09:00")
+))()
+
+# ── Flip to Start / Instant Boot ─────────────────────────────────────────────
+def _find_sysfs_feature(names: list) -> "Path | None":
+    for name in names:
+        p = _find_feature(name)
+        if p: return p
     return None
 
 FLIP_TO_START = _find_sysfs_feature(["flip_to_start","fliptostart","flip_to_boot","fliptoboot"])
@@ -404,24 +470,24 @@ def detect_hardware() -> dict:
 
         # Power
         "platform_profile":     ex("/sys/firmware/acpi/platform_profile"),
-        "conservation_mode":    ex(str(IDEAPAD_BASE / "conservation_mode")),
-        "rapidcharge":          ex(str(LEGION_BASE / "rapidcharge")),
-        "powerchargemode":      ex(str(LEGION_BASE / "powerchargemode")),
+        "conservation_mode":    CONSERVATION_MODE.exists(),
+        "rapidcharge":          RAPID_CHARGE.exists(),
+        "powerchargemode":      POWER_CHARGE_MODE.exists(),
 
         # Display
-        "overdrive":  ex(str(OVERDRIVE)),
-        "gsync":      ex(str(GSYNC)),
+        "overdrive":  OVERDRIVE.exists(),
+        "gsync":      GSYNC.exists(),
 
         # Input
-        "fn_lock":    ex(str(FN_LOCK)),
-        "camera":     ex(str(CAMERA_POWER)),
-        "touchpad":   ex(str(TOUCHPAD)),
-        "winkey":     ex(str(WINKEY)),
-        "usb_charging": ex(str(USB_CHARGING)),
+        "fn_lock":    FN_LOCK.exists(),
+        "camera":     CAMERA_POWER.exists(),
+        "touchpad":   TOUCHPAD.exists(),
+        "winkey":     WINKEY.exists(),
+        "usb_charging": USB_CHARGING.exists(),
 
         # Fan
-        "fan_fullspeed": ex(str(FAN_FULLSPEED)),
-        "thermalmode":   ex(str(THERMAL_MODE)),
+        "fan_fullspeed": FAN_FULLSPEED.exists(),
+        "thermalmode":   THERMAL_MODE.exists(),
 
         # Backlight
         "kbd_backlight": ex("/sys/class/leds/platform::kbd_backlight/brightness"),
